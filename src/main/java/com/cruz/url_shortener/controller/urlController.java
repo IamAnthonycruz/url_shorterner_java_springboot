@@ -9,8 +9,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class urlController {
-    @PostMapping("/api/v1/url")
+    @PostMapping("/api/v1/short_url")
     ResponseEntity<String>addUrl(@Valid @RequestBody urlRequestDto urlRequestDto){
+
         return ResponseEntity.ok().body("");
     };
 }
