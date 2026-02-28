@@ -1,4 +1,4 @@
-package com.cruz.url_shortener.dtos;
+package com.cruz.url_shortener.dto;
 
 
 import lombok.Data;

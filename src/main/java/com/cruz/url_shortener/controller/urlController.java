@@ -1,6 +1,6 @@
 package com.cruz.url_shortener.controller;
 
-import com.cruz.url_shortener.dtos.urlRequestDto;
+import com.cruz.url_shortener.dto.urlRequestDto;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

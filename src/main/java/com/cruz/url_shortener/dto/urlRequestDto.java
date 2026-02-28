@@ -1,4 +1,4 @@
-package com.cruz.url_shortener.dtos;
+package com.cruz.url_shortener.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;

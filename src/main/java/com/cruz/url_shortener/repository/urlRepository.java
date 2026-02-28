@@ -1,6 +1,6 @@
 package com.cruz.url_shortener.repository;
 
-import com.cruz.url_shortener.models.Url;
+import com.cruz.url_shortener.entity.Url;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

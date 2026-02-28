@@ -3,6 +3,8 @@
 **Estimated Time:** 18–24 hours  
 **Goal:** Build a production-style URL shortening service that touches REST API design, database modeling, caching strategy, JSON handling, and legacy SOAP integration.
 
+> **Note:** This document is ordered by build dependency — each part depends only on what came before it. You can follow it top to bottom without jumping around.
+
 ---
 
 ## Part 1: Project Setup & Spring Boot Foundation
@@ -74,121 +76,13 @@ HTTP Request → DispatcherServlet → HandlerMapping (find the right method)
 
 ---
 
-## Part 2: Core REST API & JSON Handling
-**Time:** 3–4 hours  
-**Goal:** Build the two core endpoints — shorten a URL and redirect from a short code — with proper request/response design and error handling.
-
-### Subproblem 2.1 — Designing Your DTOs and Validation
-
-#### Logic Walkthrough
-A DTO (Data Transfer Object) is a class whose only job is to carry data across a boundary — in this case, between the HTTP layer and your service layer. You do NOT use your JPA entity classes directly as request/response bodies. Here's why: your entity has fields like `id`, `createdAt`, and `hitCount` that you don't want clients setting. Separating the DTO from the entity gives you control.
-
-For the shorten endpoint, you need:
-- A **request DTO** with one field: the long URL the client is submitting
-- A **response DTO** with the short URL to return
-
-On the request DTO, put `@NotBlank` to reject empty strings and `@URL` (from Hibernate Validator, or write a custom one) to reject non-URL strings. Add `@Valid` on the controller method parameter — this is the trigger that activates validation. Without `@Valid`, your annotations do nothing.
-
-When validation fails, Spring throws a `MethodArgumentNotValidException`. By default this returns a 400 with a verbose internal error body. You'll override this in Subproblem 2.3 with a global handler that returns a clean JSON error.
-
-**Gotcha:** `@URL` from Hibernate Validator is strict — it rejects URLs without a scheme (`google.com` fails, `https://google.com` passes). Decide whether you want that behavior or want to be more permissive with a regex-based custom constraint. For this project, strict is fine.
-
-#### Reading Resource
-[Baeldung — Spring Boot Validation](https://www.baeldung.com/spring-boot-bean-validation)
-
-**YouTube Search:** `"Spring Boot DTO validation @Valid example"`
-
-#### Where You'll See This Again
-1. Every API at scale uses DTOs — GraphQL resolvers, gRPC generated classes, and REST controllers all have this separation between wire format and internal domain model.
-2. When you add the chat app (Project 2), WebSocket message payloads follow the same DTO pattern — you'll define a message DTO for incoming chat messages.
-3. In your Federal Reserve internship context, request routing software typically validates the shape of a request before it hits the routing logic — same principle, different layer.
-
-**Why this matters:** Validation at the boundary is the first line of defense. Letting raw, unvalidated input reach your service layer and database is how SQL injection and data corruption happen.
-
----
-
-### Subproblem 2.2 — Building the Shorten and Redirect Endpoints
-
-#### Logic Walkthrough
-You have two endpoints to build:
-
-**POST /api/shorten**  
-Takes a long URL, generates a short code, saves it, and returns the full short URL. The logic:
-1. Validate the incoming DTO (happens automatically via `@Valid`)
-2. Check if the long URL already exists in the DB — if it does, return the existing short code instead of creating a duplicate
-3. If it's new, generate a short code (covered in Part 3), save to DB, return the short URL
-
-What to return: a response DTO containing the short URL (`http://localhost:8080/{code}`), the original URL, and a creation timestamp. Return HTTP 201 Created (not 200) — this is the semantically correct status for resource creation. Use `ResponseEntity.status(HttpStatus.CREATED).body(responseDto)`.
-
-**GET /{shortCode}**  
-This is the redirect endpoint. The logic:
-1. Look up the short code in cache first (covered in Part 4), then DB
-2. If not found, throw a custom `ShortCodeNotFoundException`
-3. If found, optionally increment a hit counter
-4. Return an HTTP 302 redirect to the long URL
-
-For the redirect, use `ResponseEntity` with a `Location` header:
-```java
-return ResponseEntity.status(HttpStatus.FOUND)
-    .location(URI.create(longUrl))
-    .build();
-```
-
-**301 vs 302:** 301 is permanent (browser caches it forever), 302 is temporary (browser re-checks each time). Use 302 for URL shorteners — if you ever delete or change a short code, 301 will break for users who have it cached.
-
-**Gotcha:** The `@PathVariable` on `/{shortCode}` will match ANY path segment including things like `/favicon.ico` that browsers request automatically. Either add a prefix (`/r/{shortCode}`) or handle those gracefully in your exception handler.
-
-#### Reading Resource
-[Baeldung — Spring REST Controller](https://www.baeldung.com/spring-controller-vs-restcontroller)
-
-**YouTube Search:** `"Spring Boot REST API redirect 302 ResponseEntity example"`
-
-#### Where You'll See This Again
-1. Every URL shortener (bit.ly, tinyurl) uses this exact 302 redirect pattern at massive scale — the redirect endpoint is the hot path.
-2. OAuth2 callback flows use the same `Location` header redirect — after authentication, the auth server redirects back to your app via this mechanism.
-3. In your reverse proxy project (Part 2, Go), you'll implement redirect logic at the HTTP parser level — understanding it at the Spring abstraction first makes the raw implementation clearer.
-
-**Why this matters:** The redirect endpoint is the one that gets called at scale — every click on a short link hits it. Understanding the HTTP semantics of redirects now will inform the caching strategy in Part 4.
-
----
-
-### Subproblem 2.3 — Global Exception Handling
-
-#### Logic Walkthrough
-Without a global exception handler, Spring returns its default error response — a verbose object with `timestamp`, `status`, `error`, `trace`, and `path`. This leaks internal details and is inconsistent. You want a single place that intercepts all exceptions and maps them to clean JSON error responses.
-
-Create a class annotated with `@RestControllerAdvice`. This makes it a component that Spring applies to all controllers globally. Inside, define methods annotated with `@ExceptionHandler(SomeException.class)` — Spring calls the right method when that exception is thrown anywhere in your controller layer.
-
-You'll handle at least three cases:
-1. `MethodArgumentNotValidException` (validation failure) → 400 with a list of which fields failed
-2. `ShortCodeNotFoundException` (your custom exception) → 404
-3. `Exception` (catch-all) → 500 with a generic message
-
-For the validation case, `MethodArgumentNotValidException` has a `getBindingResult()` method that gives you the list of field errors. Extract the field name and the default message from each one and return them as a list in your error response body.
-
-Define a consistent error response DTO: `{ "status": 400, "message": "Validation failed", "errors": [...] }`. Every error from your API looks the same shape.
-
-**Gotcha:** Exception handler method ordering matters when using inheritance. If you have a handler for `Exception` and one for `ShortCodeNotFoundException`, Spring uses the most specific match. But if you put the `Exception` handler in a different class than the specific ones, the ordering can become unpredictable. Keep them all in one `@RestControllerAdvice` class.
-
-#### Reading Resource
-[Baeldung — Exception Handling in Spring Boot REST API](https://www.baeldung.com/exception-handling-for-rest-with-spring)
-
-**YouTube Search:** `"Spring Boot @ControllerAdvice global exception handler tutorial"`
-
-#### Where You'll See This Again
-1. Every production REST API has this layer — Netflix's Zuul gateway, AWS API Gateway, and your own services all centralize error handling to avoid inconsistent responses.
-2. gRPC has the equivalent in `StatusRuntimeException` — a single error model that all RPC calls return, analogous to your standardized error DTO.
-3. When you build the API gateway in Part 2 of your roadmap, you'll implement this same "catch and transform" pattern for upstream errors coming back through the proxy.
-
-**Why this matters:** Consistent error responses are what make APIs usable. If some endpoints return `{ "error": "..." }` and others return `{ "message": "..." }`, clients have to write special-case handling for every endpoint.
-
----
-
-## Part 3: Database Design & Short Code Generation
+## Part 2: Database Design & Short Code Generation
 **Time:** 3–4 hours  
 **Goal:** Model the data correctly, wire up JPA, and implement a collision-safe short code generation strategy.
 
-### Subproblem 3.1 — Schema Design & JPA Entity
+*You build the data layer before the API layer because the controller and service depend on the entity and repository — not the other way around.*
+
+### Subproblem 2.1 — Schema Design & JPA Entity
 
 #### Logic Walkthrough
 Your `urls` table needs these columns at minimum:
@@ -220,7 +114,7 @@ For `createdAt`, use `@CreationTimestamp` from Hibernate — it auto-populates t
 
 ---
 
-### Subproblem 3.2 — Short Code Generation Strategy
+### Subproblem 2.2 — Short Code Generation Strategy
 
 #### Logic Walkthrough
 You need to convert a long URL into a short, unique code. There are two main approaches:
@@ -259,9 +153,123 @@ For this project, the two-write approach is fine. Save with `short_code = null`,
 
 ---
 
+## Part 3: Core REST API & JSON Handling
+**Time:** 3–4 hours  
+**Goal:** Build the two core endpoints — shorten a URL and redirect from a short code — with proper request/response design and error handling.
+
+*Now that the entity, repository, and short code logic exist, you can build the service and controller layers on top of them.*
+
+### Subproblem 3.1 — Designing Your DTOs and Validation
+
+#### Logic Walkthrough
+A DTO (Data Transfer Object) is a class whose only job is to carry data across a boundary — in this case, between the HTTP layer and your service layer. You do NOT use your JPA entity classes directly as request/response bodies. Here's why: your entity has fields like `id`, `createdAt`, and `hitCount` that you don't want clients setting. Separating the DTO from the entity gives you control.
+
+For the shorten endpoint, you need:
+- A **request DTO** with one field: the long URL the client is submitting
+- A **response DTO** with the short URL to return
+
+On the request DTO, put `@NotBlank` to reject empty strings and `@URL` (from Hibernate Validator, or write a custom one) to reject non-URL strings. Add `@Valid` on the controller method parameter — this is the trigger that activates validation. Without `@Valid`, your annotations do nothing.
+
+When validation fails, Spring throws a `MethodArgumentNotValidException`. By default this returns a 400 with a verbose internal error body. You'll override this in Subproblem 3.3 with a global handler that returns a clean JSON error.
+
+**Gotcha:** `@URL` from Hibernate Validator is strict — it rejects URLs without a scheme (`google.com` fails, `https://google.com` passes). Decide whether you want that behavior or want to be more permissive with a regex-based custom constraint. For this project, strict is fine.
+
+#### Reading Resource
+[Baeldung — Spring Boot Validation](https://www.baeldung.com/spring-boot-bean-validation)
+
+**YouTube Search:** `"Spring Boot DTO validation @Valid example"`
+
+#### Where You'll See This Again
+1. Every API at scale uses DTOs — GraphQL resolvers, gRPC generated classes, and REST controllers all have this separation between wire format and internal domain model.
+2. When you add the chat app (Project 2), WebSocket message payloads follow the same DTO pattern — you'll define a message DTO for incoming chat messages.
+3. In your Federal Reserve internship context, request routing software typically validates the shape of a request before it hits the routing logic — same principle, different layer.
+
+**Why this matters:** Validation at the boundary is the first line of defense. Letting raw, unvalidated input reach your service layer and database is how SQL injection and data corruption happen.
+
+---
+
+### Subproblem 3.2 — Building the Shorten and Redirect Endpoints
+
+#### Logic Walkthrough
+You have two endpoints to build:
+
+**POST /api/shorten**  
+Takes a long URL, generates a short code, saves it, and returns the full short URL. The logic:
+1. Validate the incoming DTO (happens automatically via `@Valid`)
+2. Check if the long URL already exists in the DB — if it does, return the existing short code instead of creating a duplicate
+3. If it's new, generate a short code (built in Part 2), save to DB, return the short URL
+
+What to return: a response DTO containing the short URL (`http://localhost:8080/{code}`), the original URL, and a creation timestamp. Return HTTP 201 Created (not 200) — this is the semantically correct status for resource creation. Use `ResponseEntity.status(HttpStatus.CREATED).body(responseDto)`.
+
+**GET /{shortCode}**  
+This is the redirect endpoint. The logic:
+1. Look up the short code in cache first (covered in Part 4), then DB
+2. If not found, throw a custom `ShortCodeNotFoundException`
+3. If found, optionally increment a hit counter
+4. Return an HTTP 302 redirect to the long URL
+
+For the redirect, use `ResponseEntity` with a `Location` header:
+```java
+return ResponseEntity.status(HttpStatus.FOUND)
+    .location(URI.create(longUrl))
+    .build();
+```
+
+**301 vs 302:** 301 is permanent (browser caches it forever), 302 is temporary (browser re-checks each time). Use 302 for URL shorteners — if you ever delete or change a short code, 301 will break for users who have it cached.
+
+**Gotcha:** The `@PathVariable` on `/{shortCode}` will match ANY path segment including things like `/favicon.ico` that browsers request automatically. Either add a prefix (`/r/{shortCode}`) or handle those gracefully in your exception handler.
+
+#### Reading Resource
+[Baeldung — Spring REST Controller](https://www.baeldung.com/spring-controller-vs-restcontroller)
+
+**YouTube Search:** `"Spring Boot REST API redirect 302 ResponseEntity example"`
+
+#### Where You'll See This Again
+1. Every URL shortener (bit.ly, tinyurl) uses this exact 302 redirect pattern at massive scale — the redirect endpoint is the hot path.
+2. OAuth2 callback flows use the same `Location` header redirect — after authentication, the auth server redirects back to your app via this mechanism.
+3. In your reverse proxy project (Part 2, Go), you'll implement redirect logic at the HTTP parser level — understanding it at the Spring abstraction first makes the raw implementation clearer.
+
+**Why this matters:** The redirect endpoint is the one that gets called at scale — every click on a short link hits it. Understanding the HTTP semantics of redirects now will inform the caching strategy in Part 4.
+
+---
+
+### Subproblem 3.3 — Global Exception Handling
+
+#### Logic Walkthrough
+Without a global exception handler, Spring returns its default error response — a verbose object with `timestamp`, `status`, `error`, `trace`, and `path`. This leaks internal details and is inconsistent. You want a single place that intercepts all exceptions and maps them to clean JSON error responses.
+
+Create a class annotated with `@RestControllerAdvice`. This makes it a component that Spring applies to all controllers globally. Inside, define methods annotated with `@ExceptionHandler(SomeException.class)` — Spring calls the right method when that exception is thrown anywhere in your controller layer.
+
+You'll handle at least three cases:
+1. `MethodArgumentNotValidException` (validation failure) → 400 with a list of which fields failed
+2. `ShortCodeNotFoundException` (your custom exception) → 404
+3. `Exception` (catch-all) → 500 with a generic message
+
+For the validation case, `MethodArgumentNotValidException` has a `getBindingResult()` method that gives you the list of field errors. Extract the field name and the default message from each one and return them as a list in your error response body.
+
+Define a consistent error response DTO: `{ "status": 400, "message": "Validation failed", "errors": [...] }`. Every error from your API looks the same shape.
+
+**Gotcha:** Exception handler method ordering matters when using inheritance. If you have a handler for `Exception` and one for `ShortCodeNotFoundException`, Spring uses the most specific match. But if you put the `Exception` handler in a different class than the specific ones, the ordering can become unpredictable. Keep them all in one `@RestControllerAdvice` class.
+
+#### Reading Resource
+[Baeldung — Exception Handling in Spring Boot REST API](https://www.baeldung.com/exception-handling-for-rest-with-spring)
+
+**YouTube Search:** `"Spring Boot @ControllerAdvice global exception handler tutorial"`
+
+#### Where You'll See This Again
+1. Every production REST API has this layer — Netflix's Zuul gateway, AWS API Gateway, and your own services all centralize error handling to avoid inconsistent responses.
+2. gRPC has the equivalent in `StatusRuntimeException` — a single error model that all RPC calls return, analogous to your standardized error DTO.
+3. When you build the API gateway in Part 2 of your roadmap, you'll implement this same "catch and transform" pattern for upstream errors coming back through the proxy.
+
+**Why this matters:** Consistent error responses are what make APIs usable. If some endpoints return `{ "error": "..." }` and others return `{ "message": "..." }`, clients have to write special-case handling for every endpoint.
+
+---
+
 ## Part 4: Caching Hot URLs with Redis
 **Time:** 3–4 hours  
 **Goal:** Implement a cache-aside pattern so popular short codes don't hit the database on every redirect.
+
+*The REST API works end-to-end at this point. Now you're optimizing the hot path — the redirect endpoint — by adding a cache layer in front of the database.*
 
 ### Subproblem 4.1 — Cache-Aside Pattern with Redis
 
@@ -337,6 +345,8 @@ Think about the ordering: should you delete from the DB first or the cache first
 **Time:** 3–4 hours  
 **Goal:** Expose the same shorten/lookup functionality via a SOAP endpoint to understand contract-first API design vs REST's resource-first approach.
 
+*Everything works via REST at this point. This part adds a second transport layer on top of the same service logic — you're not rewriting anything, just exposing it differently.*
+
 ### Subproblem 5.1 — Contract-First Design with XSD and WSDL
 
 #### Logic Walkthrough
@@ -383,23 +393,6 @@ Place this XSD in `src/main/resources/`. Spring-WS serves it at `/ws/*.wsdl`.
 3. OpenAPI/Swagger specs for REST APIs are moving toward the same contract-first model — define the spec, generate the server stubs.
 
 **Why this matters:** Understanding why contract-first exists (strict versioning, cross-team coordination, generated clients) gives you context for why gRPC won out over SOAP in modern systems — and why SOAP still hasn't died in enterprise environments.
-
----
-
-## Build Order Summary
-
-Follow this sequence — each step has what it needs from the previous one:
-
-1. Generate project at start.spring.io, configure `application.properties`, verify app starts
-2. Create the `Url` JPA entity and `UrlRepository` interface — run with `ddl-auto=create` once to let Hibernate generate the table, then switch to `update`
-3. Build the `ShortenUrlRequest` and `ShortenUrlResponse` DTOs with validation annotations
-4. Implement the service layer: `shortenUrl()` and `getLongUrl()` methods, without caching yet
-5. Build the REST controller — `POST /api/shorten` and `GET /{shortCode}`
-6. Add the `@RestControllerAdvice` global exception handler
-7. Test the full REST flow end-to-end with curl or Postman
-8. Add Redis — implement cache-aside in `getLongUrl()` manually first
-9. Add cache eviction if you implement DELETE
-10. Implement the SOAP endpoint using the same service layer methods — you're just adding a new transport layer on top of logic that already works
 
 ---
 
