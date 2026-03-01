@@ -5,20 +5,26 @@ import com.cruz.url_shortener.dto.UrlResponseDto;
 import com.cruz.url_shortener.service.UrlService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.net.URI;
 
 @RequiredArgsConstructor
 @RestController
 public class UrlController {
-    private UrlService urlService;
+    private final UrlService urlService;
     @PostMapping("/api/v1/short-url")
-    ResponseEntity<UrlResponseDto>addUrl(@Valid @RequestBody UrlRequestDto urlRequestDto){
+    ResponseEntity<UrlResponseDto>shortenUrl(@Valid @RequestBody UrlRequestDto urlRequestDto){
         var response = urlService.shortenUrl(urlRequestDto);
-        return ResponseEntity.ok().body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     };
+    @GetMapping("/{shortCode}")
+    ResponseEntity<String>getLongUrl(@PathVariable String shortCode){
+        var longUrl = urlService.getLongUrl(shortCode);
+        return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(longUrl)).build();
+    }
+
 
 }
