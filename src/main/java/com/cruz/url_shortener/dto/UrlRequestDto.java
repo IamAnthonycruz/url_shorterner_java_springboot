@@ -5,7 +5,7 @@ import lombok.Data;
 import org.hibernate.validator.constraints.URL;
 
 @Data
-public class urlRequestDto {
+public class UrlRequestDto {
     @URL
     @NotBlank
     String longUrl;
