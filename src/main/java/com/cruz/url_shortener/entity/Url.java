@@ -22,7 +22,7 @@ public class Url {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "long_url", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "long_url", unique = true, nullable = false, columnDefinition = "TEXT")
     private String longUrl;
 
 
