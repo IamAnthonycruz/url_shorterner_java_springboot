@@ -15,7 +15,7 @@ import java.net.URI;
 @RestController
 public class UrlController {
     private final UrlService urlService;
-    @PostMapping("/api/v1/short-url")
+    @PostMapping("/api/v1/short-urls")
     ResponseEntity<UrlResponseDto>shortenUrl(@Valid @RequestBody UrlRequestDto urlRequestDto){
         var response = urlService.shortenUrl(urlRequestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
