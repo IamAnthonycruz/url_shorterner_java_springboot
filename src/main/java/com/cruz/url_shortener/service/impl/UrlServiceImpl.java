@@ -23,7 +23,7 @@ public class UrlServiceImpl implements UrlService {
     private final AppProperties appProperties;
     @Override
     public UrlResponseDto shortenUrl(UrlRequestDto urlRequestDto) {
-        try {
+
             var entity = urlRepository.findByLongUrl(urlRequestDto.getLongUrl());
             if (entity.isPresent()) {
                 var responseDto = urlMapper.toResponseDto(entity.get());
@@ -39,10 +39,8 @@ public class UrlServiceImpl implements UrlService {
                 responseDto.setShortUrl(appProperties.getBaseUrl()+"/"+urlEntity.getShortCode());
                 return responseDto;
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
         }
-    }
+
 
     HashMap<String, String> mockRedis = new HashMap<>();
 
