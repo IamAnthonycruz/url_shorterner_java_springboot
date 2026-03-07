@@ -4,6 +4,7 @@ import com.cruz.url_shortener.component.Base62Encoder;
 import com.cruz.url_shortener.config.AppProperties;
 import com.cruz.url_shortener.dto.UrlRequestDto;
 import com.cruz.url_shortener.dto.UrlResponseDto;
+import com.cruz.url_shortener.exception.ShortCodeNotFoundException;
 import com.cruz.url_shortener.mapper.UrlMapper;
 import com.cruz.url_shortener.repository.UrlRepository;
 import com.cruz.url_shortener.service.UrlService;
@@ -47,22 +48,20 @@ public class UrlServiceImpl implements UrlService {
     @Override
     public String getLongUrl(String shortCode) {
         String longUrl;
-        var entity = urlRepository.findByShortCode(shortCode);
-        if(entity.isEmpty()) {
-            throw new RuntimeException();
-        }
+        var entity = urlRepository.findByShortCode(shortCode).orElseThrow(()-> new ShortCodeNotFoundException("Short code not found: " + shortCode));
+
         if(mockRedis.containsKey(shortCode)) {
             longUrl = mockRedis.get(shortCode);
         }
         else{
-            longUrl = entity.get().getLongUrl();
+            longUrl = entity.getLongUrl();
             mockRedis.put(shortCode, longUrl);
         }
         //will update once i have the redis set up and set up the exception
-        var hitCount = entity.get().getHitCount();
+        var hitCount = entity.getHitCount();
         hitCount++;
-        entity.get().setHitCount(hitCount);
-        entity.ifPresent(urlRepository::save);
+        entity.setHitCount(hitCount);
+        urlRepository.save(entity);
         return longUrl;
     }
 }
