@@ -9,11 +9,14 @@ import com.cruz.url_shortener.mapper.UrlMapper;
 import com.cruz.url_shortener.repository.UrlRepository;
 import com.cruz.url_shortener.service.UrlService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +25,7 @@ public class UrlServiceImpl implements UrlService {
     private final Base62Encoder base62Encoder;
     private final UrlMapper urlMapper;
     private final AppProperties appProperties;
+    private final StringRedisTemplate stringRedisTemplate;
     @Override
     public UrlResponseDto shortenUrl(UrlRequestDto urlRequestDto) {
 
@@ -43,19 +47,17 @@ public class UrlServiceImpl implements UrlService {
         }
 
 
-    HashMap<String, String> mockRedis = new HashMap<>();
-
     @Override
     public String getLongUrl(String shortCode) {
         String longUrl;
         var entity = urlRepository.findByShortCode(shortCode).orElseThrow(()-> new ShortCodeNotFoundException("Short code not found: " + shortCode));
-
-        if(mockRedis.containsKey(shortCode)) {
-            longUrl = mockRedis.get(shortCode);
+        var cachedUrl = stringRedisTemplate.opsForValue().get(shortCode);
+        if(cachedUrl != null) {
+            longUrl = cachedUrl;
         }
         else{
             longUrl = entity.getLongUrl();
-            mockRedis.put(shortCode, longUrl);
+            stringRedisTemplate.opsForValue().set(shortCode,longUrl, Duration.ofHours(1));
         }
         //will update once i have the redis set up and set up the exception
         var hitCount = entity.getHitCount();
