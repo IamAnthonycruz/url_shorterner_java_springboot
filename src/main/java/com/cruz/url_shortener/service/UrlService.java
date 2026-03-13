@@ -6,4 +6,5 @@ import com.cruz.url_shortener.dto.UrlResponseDto;
 public interface UrlService {
     UrlResponseDto shortenUrl(UrlRequestDto urlRequestDto);
     String getLongUrl(String shortCode);
+    void disableShortUrl(String shortCode);
 }

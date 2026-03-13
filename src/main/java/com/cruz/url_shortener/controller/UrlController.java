@@ -25,6 +25,10 @@ public class UrlController {
         var longUrl = urlService.getLongUrl(shortCode);
         return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(longUrl)).build();
     }
-
+    @DeleteMapping("/api/v1/short-urls/{shortCode}")
+    ResponseEntity<String>disableShortUrl(@PathVariable String shortCode){
+        urlService.disableShortUrl(shortCode);
+        return ResponseEntity.noContent().build();
+    }
 
 }

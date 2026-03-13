@@ -29,6 +29,9 @@ public class Url {
     @Column(name = "short_code", unique = true, nullable = false, length = 10)
     private String shortCode;
 
+    @Column(name="is_short_code_active", nullable = false)
+    private boolean isShortCodeActive = true;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = true)
     private Instant createdAt;

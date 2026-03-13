@@ -13,10 +13,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Objects;
-import java.util.concurrent.TimeUnit;
+
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +28,10 @@ public class UrlServiceImpl implements UrlService {
 
             var entity = urlRepository.findByLongUrl(urlRequestDto.getLongUrl());
             if (entity.isPresent()) {
+                if(!entity.get().isShortCodeActive()){
+                    entity.get().setShortCodeActive(true);
+                    entity.ifPresent(urlRepository::save);
+                }
                 var responseDto = urlMapper.toResponseDto(entity.get());
                 responseDto.setShortUrl(appProperties.getBaseUrl()+"/"+entity.get().getShortCode());
                 return responseDto;
@@ -50,20 +51,31 @@ public class UrlServiceImpl implements UrlService {
     @Override
     public String getLongUrl(String shortCode) {
         String longUrl;
-        var entity = urlRepository.findByShortCode(shortCode).orElseThrow(()-> new ShortCodeNotFoundException("Short code not found: " + shortCode));
+
         var cachedUrl = stringRedisTemplate.opsForValue().get(shortCode);
+
         if(cachedUrl != null) {
             longUrl = cachedUrl;
-        }
-        else{
+        } else{
+            var entity = urlRepository.findByShortCode(shortCode).orElseThrow(()-> new ShortCodeNotFoundException("Short Code Not Found: " + shortCode));
+            if(!entity.isShortCodeActive()){
+                throw new ShortCodeNotFoundException("Short Code Not Found: "+ shortCode);
+            }
             longUrl = entity.getLongUrl();
             stringRedisTemplate.opsForValue().set(shortCode,longUrl, Duration.ofHours(1));
         }
-        //will update once i have the redis set up and set up the exception
-        var hitCount = entity.getHitCount();
-        hitCount++;
-        entity.setHitCount(hitCount);
-        urlRepository.save(entity);
+
+        urlRepository.incrementHitCount(shortCode);
         return longUrl;
+    }
+
+    @Override
+    public void disableShortUrl(String shortCode) {
+        var entity = urlRepository.findByShortCode(shortCode).
+                orElseThrow(()-> new ShortCodeNotFoundException("Short code not found: " + shortCode));
+        entity.setShortCodeActive(false);
+        urlRepository.save(entity);
+        stringRedisTemplate.delete(shortCode);
+
     }
 }
