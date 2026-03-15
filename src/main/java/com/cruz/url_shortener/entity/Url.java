@@ -22,7 +22,7 @@ public class Url {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "long_url", unique = true, nullable = false, columnDefinition = "TEXT")
+    @Column(name = "long_url", nullable = false, columnDefinition = "TEXT")
     private String longUrl;
 
 
@@ -33,10 +33,13 @@ public class Url {
     private boolean isShortCodeActive = true;
 
     @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = true)
+    @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     @Column(name = "hit_count", nullable = false)
     private long hitCount = 0;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 }

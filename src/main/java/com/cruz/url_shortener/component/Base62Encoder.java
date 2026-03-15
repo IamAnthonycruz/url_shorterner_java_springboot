@@ -3,7 +3,7 @@ package com.cruz.url_shortener.component;
 import org.springframework.stereotype.Component;
 
 @Component
-public class Base62Encoder implements LinkEncoder{
+public class Base62Encoder implements Encoder<String, Long> {
     private static final String lookUpString = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     @Override
     public String encode(Long id) {
