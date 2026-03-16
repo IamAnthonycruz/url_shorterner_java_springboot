@@ -29,8 +29,18 @@ public class GlobalExceptionHandler {
         errors.add(ex.getMessage());
         errorResponseDto.setStatus(404);
         errorResponseDto.setErrors(errors);
-        errorResponseDto.setMessage("Not found");
+        errorResponseDto.setMessage("Not Found");
         return ResponseEntity.status(404).body(errorResponseDto);
+    }
+    @ExceptionHandler(UserAlreadyCreatedException.class)
+    public ResponseEntity<ErrorResponseDto> handleUserAlreadyCreatedException(UserAlreadyCreatedException ex){
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto();
+        ArrayList<String> errors = new ArrayList<>();
+        errors.add(ex.getMessage());
+        errorResponseDto.setStatus(429);
+        errorResponseDto.setErrors(errors);
+        errorResponseDto.setMessage("Conflict");
+        return ResponseEntity.status(409).body(errorResponseDto);
     }
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponseDto> exception(Exception ex){
