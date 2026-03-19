@@ -13,10 +13,11 @@ import com.cruz.url_shortener.service.AuthService;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -43,14 +44,19 @@ public class AuthServiceImpl implements AuthService {
         }
 
     @Override
-    public LoginResponseDto login(LoginRequestDto loginRequestDto) {
-        var user = userRepository.findByUserName(loginRequestDto.getUserName()).orElseThrow(()-> new InvalidCredentialException("Username or Password is Invalid")); //I will create this custome exception since we dont want to give any clues in case anyone gets lucky!
-        var decryptedPassword = passwordEncoder.matches(loginRequestDto.getPassword(), user.getPassword());
-        if (!decryptedPassword) {
+    public LoginResponseDto login(String sessionIdCookie, LoginRequestDto loginRequestDto) {
+        var user = userRepository.findByUserName(loginRequestDto.getUserName()).orElseThrow(()-> new InvalidCredentialException("Username or Password is Invalid")); //I will create this custom exception since we dont want to give any clues in case anyone gets lucky!
+        var doesPasswordMatch = passwordEncoder.matches(loginRequestDto.getPassword(), user.getPassword());
+        if (!doesPasswordMatch) {
             throw new InvalidCredentialException("Username or Password is Invalid");
         }
-
-            UUID sessionId = UUID.randomUUID();
-            stringRedisTemplate.opsForValue().set(String.valueOf(sessionId), String.valueOf(user.getId()),24, TimeUnit.HOURS);
+        if(!sessionIdCookie.isEmpty()) {
+            stringRedisTemplate.opsForValue().getAndDelete(sessionIdCookie);
+        }
+        UUID sessionId = UUID.randomUUID();
+        stringRedisTemplate.opsForValue().set(String.valueOf(sessionId), String.valueOf(user.getId()),24, TimeUnit.HOURS);
+        var loginResponseDto = new LoginResponseDto();
+        loginResponseDto.setSessionId(sessionId.toString());
+        return loginResponseDto;
     }
 }

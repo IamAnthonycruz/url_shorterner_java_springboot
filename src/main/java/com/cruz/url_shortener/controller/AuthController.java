@@ -7,11 +7,16 @@ import com.cruz.url_shortener.dto.RegistrationResponseDto;
 import com.cruz.url_shortener.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.Duration;
 
 @RestController
 @RequiredArgsConstructor
@@ -23,8 +28,17 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(registrationResponseDto);
     }
     @PostMapping("/api/v2/auth/login")
-    ResponseEntity<LoginResponseDto>login(@Valid @RequestBody LoginRequestDto loginRequestDto){
-        authService.login(loginRequestDto);
-        return ResponseEntity.status(HttpStatus.OK).body(new LoginResponseDto());
+    ResponseEntity<LoginResponseDto>login(
+            @CookieValue(name = "session-id", defaultValue = "") String sessionIdCookie,
+            @Valid @RequestBody LoginRequestDto loginRequestDto){
+            var loginResponseDto = authService.login(sessionIdCookie,loginRequestDto);
+             var newSessionIdCookie = ResponseCookie.from("session-id", String.valueOf(loginResponseDto.getSessionId()))
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(Duration.ofHours(24))
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).header(HttpHeaders.SET_COOKIE, newSessionIdCookie.toString()).body(loginResponseDto);
     }
 }
