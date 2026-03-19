@@ -52,4 +52,16 @@ public class GlobalExceptionHandler {
             errorResponseDto.setMessage("Internal Server Error");
             return ResponseEntity.status(500).body(errorResponseDto);
     }
+    @ExceptionHandler(InvalidCredentialException.class)
+    public ResponseEntity<ErrorResponseDto> errorResponseDto(InvalidCredentialException ex){
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto();
+        ArrayList<String> errors = new ArrayList<>();
+        errors.add(ex.getMessage());
+        errorResponseDto.setStatus(401);
+        errorResponseDto.setErrors(errors);
+        errorResponseDto.setMessage("Username or Password is Invalid");
+        return ResponseEntity.status(401).body(errorResponseDto);
+    }
+
+
 }
