@@ -27,18 +27,33 @@ public class AuthController {
         RegistrationResponseDto registrationResponseDto = authService.registerUser(registrationRequestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(registrationResponseDto);
     }
-    @PostMapping("/api/v2/auth/login")
+    @PostMapping("/api/v1/auth/login")
     ResponseEntity<LoginResponseDto>login(
             @CookieValue(name = "session-id", defaultValue = "") String sessionIdCookie,
             @Valid @RequestBody LoginRequestDto loginRequestDto){
-            var loginResponseDto = authService.login(sessionIdCookie,loginRequestDto);
-             var newSessionIdCookie = ResponseCookie.from("session-id", String.valueOf(loginResponseDto.getSessionId()))
+            var sessionId = authService.login(sessionIdCookie,loginRequestDto);
+            var newSessionIdCookie = ResponseCookie.from("session-id", String.valueOf(sessionId))
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Lax")
                 .path("/")
                 .maxAge(Duration.ofHours(24))
                 .build();
-        return ResponseEntity.status(HttpStatus.OK).header(HttpHeaders.SET_COOKIE, newSessionIdCookie.toString()).body(loginResponseDto);
+        return ResponseEntity.status(HttpStatus.OK).header(HttpHeaders.SET_COOKIE, newSessionIdCookie.toString()).body(new LoginResponseDto(loginRequestDto.getUserName()));
+    }
+    @PostMapping("/api/v1/auth/logout")
+    ResponseEntity<Void>logout(
+            @CookieValue(name = "session-id", defaultValue = "") String sessionIdCookie
+    ){
+
+        authService.logout(sessionIdCookie);
+        var newSessionIdCookie = ResponseCookie.from("session-id", String.valueOf(sessionIdCookie))
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(0)
+                .build();
+        return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, newSessionIdCookie.toString()).build();
     }
 }

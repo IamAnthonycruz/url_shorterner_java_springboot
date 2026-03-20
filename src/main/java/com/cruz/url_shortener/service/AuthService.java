@@ -11,5 +11,6 @@ import java.util.UUID;
 public interface AuthService
 {
     RegistrationResponseDto registerUser(RegistrationRequestDto registrationRequestDto);
-    LoginResponseDto login(String sessionIdCookie, LoginRequestDto loginRequestDto);
+    UUID login(String sessionIdCookie, LoginRequestDto loginRequestDto);
+    void logout(String sessionIdCookie);
 }

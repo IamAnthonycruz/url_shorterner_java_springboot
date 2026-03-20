@@ -44,7 +44,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
     @Override
-    public LoginResponseDto login(String sessionIdCookie, LoginRequestDto loginRequestDto) {
+    public UUID login(String sessionIdCookie, LoginRequestDto loginRequestDto) {
         var user = userRepository.findByUserName(loginRequestDto.getUserName()).orElseThrow(()-> new InvalidCredentialException("Username or Password is Invalid")); //I will create this custom exception since we dont want to give any clues in case anyone gets lucky!
         var doesPasswordMatch = passwordEncoder.matches(loginRequestDto.getPassword(), user.getPassword());
         if (!doesPasswordMatch) {
@@ -55,8 +55,11 @@ public class AuthServiceImpl implements AuthService {
         }
         UUID sessionId = UUID.randomUUID();
         stringRedisTemplate.opsForValue().set(String.valueOf(sessionId), String.valueOf(user.getId()),24, TimeUnit.HOURS);
-        var loginResponseDto = new LoginResponseDto();
-        loginResponseDto.setSessionId(sessionId.toString());
-        return loginResponseDto;
+        return sessionId;
+    }
+
+    @Override
+    public void logout(String sessionIdCookie) {
+        stringRedisTemplate.opsForValue().getAndDelete(sessionIdCookie);
     }
 }
