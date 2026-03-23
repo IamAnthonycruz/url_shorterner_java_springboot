@@ -31,6 +31,7 @@ public class AuthController {
     ResponseEntity<LoginResponseDto>login(
             @CookieValue(name = "session-id", defaultValue = "") String sessionIdCookie,
             @Valid @RequestBody LoginRequestDto loginRequestDto){
+
             var sessionId = authService.login(sessionIdCookie,loginRequestDto);
             var newSessionIdCookie = ResponseCookie.from("session-id", String.valueOf(sessionId))
                 .httpOnly(true)
