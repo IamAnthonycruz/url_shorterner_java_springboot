@@ -59,8 +59,18 @@ public class GlobalExceptionHandler {
         errors.add(ex.getMessage());
         errorResponseDto.setStatus(401);
         errorResponseDto.setErrors(errors);
-        errorResponseDto.setMessage("Username or Password is Invalid");
+        errorResponseDto.setMessage("Unauthorized");
         return ResponseEntity.status(401).body(errorResponseDto);
+    }
+    @ExceptionHandler(RestrictedAccessException.class)
+    public ResponseEntity<ErrorResponseDto> errorResponseDto(RestrictedAccessException ex){
+        ErrorResponseDto errorResponseDto = new ErrorResponseDto();
+        ArrayList<String> errors = new ArrayList<>();
+        errors.add(ex.getMessage());
+        errorResponseDto.setStatus(403);
+        errorResponseDto.setErrors(errors);
+        errorResponseDto.setMessage("Forbidden");
+        return ResponseEntity.status(403).body(errorResponseDto);
     }
 
 

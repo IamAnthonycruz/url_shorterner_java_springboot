@@ -8,11 +8,14 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface UrlRepository extends JpaRepository<Url, Long> {
     Optional<Url> findByLongUrlAndUser(String longUrl, User user);
     Optional<Url> findByShortCode(String shortCode);
+    List<Url> findAllByUserId(Long userId);
+
     @Transactional
     @Modifying
     @Query("Update Url u SET u.hitCount = u.hitCount+ 1 WHERE u.shortCode = :shortCode")

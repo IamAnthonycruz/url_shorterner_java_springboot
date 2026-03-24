@@ -4,7 +4,10 @@ import com.cruz.url_shortener.component.Base62Encoder;
 import com.cruz.url_shortener.config.AppProperties;
 import com.cruz.url_shortener.dto.UrlRequestDto;
 import com.cruz.url_shortener.dto.UrlResponseDto;
+import com.cruz.url_shortener.entity.Url;
 import com.cruz.url_shortener.entity.User;
+import com.cruz.url_shortener.exception.InvalidCredentialException;
+import com.cruz.url_shortener.exception.RestrictedAccessException;
 import com.cruz.url_shortener.exception.ShortCodeNotFoundException;
 import com.cruz.url_shortener.mapper.UrlMapper;
 import com.cruz.url_shortener.repository.UrlRepository;
@@ -12,10 +15,14 @@ import com.cruz.url_shortener.repository.UserRepository;
 import com.cruz.url_shortener.service.UrlService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.attribute.UserPrincipalNotFoundException;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 
 @Service
@@ -80,12 +87,22 @@ public class UrlServiceImpl implements UrlService {
     }
 
     @Override
-    public void disableShortUrl(String shortCode) {
+    public void disableShortUrl(String shortCode, Long userId) {
         var entity = urlRepository.findByShortCode(shortCode).
                 orElseThrow(()-> new ShortCodeNotFoundException("Short code not found: " + shortCode));
-        entity.setShortCodeActive(false);
-        urlRepository.save(entity);
-        stringRedisTemplate.delete(shortCode);
+        if(Objects.equals(entity.getUser().getId(), userId)){
+            entity.setShortCodeActive(false);
+            urlRepository.save(entity);
+            stringRedisTemplate.delete(shortCode);
+        } else{
+            throw new RestrictedAccessException("The requested resources belongs to another user");
+        }
 
+
+    }
+    @Override
+    public List<UrlResponseDto> getAllUserUrls(Long id) {
+        List<Url>urls =urlRepository.findAllByUserId(id);
+        return urls.stream().map(urlMapper::toResponseDto).toList();
     }
 }
