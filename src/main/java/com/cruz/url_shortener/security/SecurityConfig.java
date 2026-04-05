@@ -24,9 +24,11 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.POST, "/api/v1/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/uwu/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/short-url").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/short-url/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/short-urls/mine").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/short-urls").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/short-urls/**").authenticated()
+
                         .anyRequest().denyAll()
                 )
                 .addFilterBefore(cookieAuthHandler, UsernamePasswordAuthenticationFilter.class);
